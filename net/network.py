@@ -3,7 +3,8 @@ import math
 import torch.nn as nn
 from .resnet import *
 from .l2norm import L2Norm
-
+from .dla_up import dla34up
+import pdb
 
 class CSPNet(nn.Module):
     def __init__(self):
@@ -81,7 +82,6 @@ class CSPNet(nn.Module):
         x_cls = torch.sigmoid(x_cls)
         x_reg = self.reg_conv(feat)
         x_off = self.off_conv(feat)
-
         return x_cls, x_reg, x_off
 
     # def train(self, mode=True):
@@ -227,3 +227,35 @@ class CSPNet_mod(nn.Module):
             self.layer2.apply(set_bn_eval)
             self.layer3.apply(set_bn_eval)
             self.layer4.apply(set_bn_eval)
+
+class CSPNet_DLA(nn.Module):
+    def __init__(self):
+        super(CSPNet_DLA, self).__init__()
+
+        self.base_DLA = dla34up()
+        self.DLA_head = nn.Conv2d(64, 256, kernel_size=3, padding=1, bias=True)
+        self.feat_bn = nn.BatchNorm2d(256, momentum=0.01)
+        self.pos_conv = nn.Conv2d(256, 1, kernel_size=1)
+        self.reg_conv = nn.Conv2d(256, 1, kernel_size=1)
+        self.off_conv = nn.Conv2d(256, 2, kernel_size=1) 
+
+        self.relu = nn.ReLU(inplace=True)
+        nn.init.xavier_normal_(self.DLA_head.weight)
+        nn.init.xavier_normal_(self.pos_conv.weight)
+        nn.init.xavier_normal_(self.reg_conv.weight)
+        nn.init.xavier_normal_(self.off_conv.weight)    
+        nn.init.constant_(self.reg_conv.bias, 0)
+        nn.init.constant_(self.pos_conv.bias, -math.log(0.99/0.01))
+        nn.init.constant_(self.off_conv.bias, 0)   
+        nn.init.constant_(self.DLA_head.bias, 0)
+
+    def forward(self, x):
+
+        feat = self.base_DLA(x)
+        feat = self.relu(self.feat_bn(self.DLA_head(feat)))
+        x_cls = self.pos_conv(feat)
+        x_cls = torch.sigmoid(x_cls)
+        x_reg = self.reg_conv(feat)
+        x_off = self.off_conv(feat)
+
+        return x_cls, x_reg, x_off

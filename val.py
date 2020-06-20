@@ -92,7 +92,7 @@ def val(testloader, net, config, args, teacher_dict=None):
 
     MRs = validate('./eval_city/val_gt.json', temp_val)
     t4 = time.time()
-    print('Summerize: [Reasonable: %.2f%%], [Bare: %.2f%%], [Partial: %.2f%%], [Heavy: %.2f%%]'
+    print('Summerize:[Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%]'
           % (MRs[0]*100, MRs[1]*100, MRs[2]*100, MRs[3]*100))
     print('Validation time used: %.3f' % (t4 - t3))
     return MRs

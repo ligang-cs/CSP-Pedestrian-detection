@@ -19,23 +19,30 @@ from apex.parallel import DistributedDataParallel as DDP
 from apex.parallel import convert_syncbn_model
 # from memory_profiler import profile
 import  argparse
+from math import cos, pi
 import pdb
 
 def parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--resume', default='',type=str, metavar='PATH', 
         help='path to latest checkpoint (default: none)')
+    parser.add_argument ('--local_rank', type=int, default=0)
     args = parser.parse_args()
     return args
 
 def main():
     cfg = Config()
     args = parse()
+    local_rank  = args.local_rank
 
-    net = CSPNet_DLA().cuda()
-    center = cls_pos().cuda()
-    height = reg_pos().cuda()
-    offset = offset_pos().cuda()
+    torch.cuda.set_device(local_rank)
+    torch.distributed.init_process_group(backend='nccl', init_method='env://')
+    device = torch.device('cuda:{}'.format(local_rank))
+
+    net = CSPNet_DLA().to(device)
+    center = cls_pos().to(device)
+    height = reg_pos().to(device)
+    offset = offset_pos().to(device)
 
     # optimizer
     # params = []
@@ -45,7 +52,7 @@ def main():
     #     else:
     #         print(n)
 
-    # net = convert_syncbn_model(CSPNet()).to(device)
+    # net = convert_syncbn_model(CSPNet_DLA()).to(device)
     optimizer = optim.Adam(net.parameters(), lr=cfg.init_lr)
     amp.register_float_function(torch, 'sigmoid')
     net, optimizer = amp.initialize(net, optimizer, opt_level='O1')
@@ -58,9 +65,10 @@ def main():
                 net.load_state_dict(checkpoint['model'])
                 optimizer.load_state_dict(checkpoint['optimizer'])
                 amp.load_state_dict(checkpoint['amp'])
-                print("=>loading checkpoint'{}'".format(args.resume))
-                print("=>loaded checkpoint '{}'(epoch {})"
-                    .format(args.resume, checkpoint['epoch']))
+                if local_rank == 0:
+                    print("=>loading checkpoint'{}'".format(args.resume))
+                    print("=>loaded checkpoint '{}'(epoch {})"
+                        .format(args.resume, checkpoint['epoch']))
             else:
                 print("=>no checkpoint found at '{}'".format(args.resume))
         resume()
@@ -72,33 +80,35 @@ def main():
     else:
         teacher_dict = None
 
-    net = nn.DataParallel(net, device_ids=cfg.gpu_ids)
-    # net = DDP(net)
+    # net = nn.DataParallel(net, device_ids=cfg.gpu_ids)
+    net = DDP(net)
 
     # dataset
-    batchsize = cfg.onegpu * len(cfg.gpu_ids)
-    args.epoch_length = int(cfg.iter_per_epoch / batchsize)
+    # batchsize = cfg.onegpu * len(cfg.gpu_ids)
+    batchsize = cfg.onegpu
+    args.epoch_length = int(cfg.iter_per_epoch / (2*batchsize))
     # traintransform = Compose(
     #     [ColorJitter(brightness=0.5), ToTensor(), Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
     traindataset = CityPersons(path=cfg.train_path, type='train', config=cfg,
                               caffemodel=cfg.caffemodel)
-    trainloader = DataLoader(traindataset, batch_size=batchsize, shuffle=True, num_workers=8)
+    datasampler = DistributedSampler(dataset = traindataset)
+    trainloader = DataLoader(traindataset, sampler=datasampler, batch_size=batchsize, shuffle=False, num_workers=8)
 
-    if cfg.val:
+    if cfg.val and local_rank==0:
         testtransform = Compose(
         [ToTensor(), Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
         testdataset = CityPersons(path=cfg.train_path, type='val', config=cfg,
                                   caffemodel=cfg.caffemodel, preloaded=False)
         testloader = DataLoader(testdataset, batch_size=1, num_workers=4)
 
-
-    cfg.print_conf()
-    print('Training start')
-    if not os.path.exists(cfg.ckpt_path):
-        os.mkdir(cfg.ckpt_path)\
-    # open log file
-    log_file = os.path.join(cfg.ckpt_path,  cfg.branch + '.log')
-    log = open(log_file, 'w')
+    if local_rank == 0:
+        cfg.print_conf()
+        print('Training start')
+        if not os.path.exists(cfg.ckpt_path):
+            os.mkdir(cfg.ckpt_path)\
+        # open log file
+        log_file = os.path.join(cfg.ckpt_path,  cfg.branch + '.log')
+        log = open(log_file, 'w')
     
     args.iter_num = args.epoch_length*cfg.num_epochs
 
@@ -113,44 +123,48 @@ def main():
         args.iter_cur = 0
 
     for epoch in range(args.start_epoch, cfg.num_epochs):
-        epoch_loss = train(trainloader, net, criterion, center, height, offset, optimizer, epoch, cfg, args, teacher_dict=teacher_dict)
-        print('----------')
-        print('Epoch %d begin' % ((epoch + 1)))
-        if cfg.val and (epoch + 1) >= cfg.val_begin and (epoch + 1) % cfg.val_frequency == 0:
-            cur_mr = val(testloader, net, cfg, args, teacher_dict=teacher_dict)
-            if cur_mr[0] < args.best_mr:
-                args.best_mr = cur_mr[0]
-                args.best_mr_epoch = epoch + 1
-                print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
-                log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
-                    % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
-            else:
-                print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
-                log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
-                    % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
-        if epoch+1 >= cfg.val_begin:
-            print('Save checkpoint...')
-            filename = cfg.ckpt_path + '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
-            checkpoint = {
-            'epoch': epoch+1,
-            'optimizer': optimizer.state_dict(),
-            'amp': amp.state_dict()
-            }
-            if cfg.teacher:
-                checkpoint['model'] = teacher_dict
-            else:
-                checkpoint['model'] = net.module.state_dict()
-            torch.save(checkpoint, filename)
-            # if cfg.teacher:
-            #     torch.save(teacher_dict, filename+'.tea')
-            print('%s saved.' % filename)
-    log.write('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
-    log.close()
-    print('End of training!')
+        datasampler.set_epoch(epoch)
+        epoch_loss = train(trainloader, net, criterion, center, height, offset, optimizer, epoch, cfg, args, local_rank, teacher_dict=teacher_dict)
+        if local_rank == 0:
+            print('----------')
+            print('Epoch %d begin' % ((epoch + 1)))
+            if cfg.val and (epoch + 1) >= cfg.val_begin and (epoch + 1) % cfg.val_frequency == 0:
+                cur_mr = val(testloader, net, cfg, args, teacher_dict=teacher_dict)
+                if cur_mr[0] < args.best_mr:
+                    args.best_mr = cur_mr[0]
+                    args.best_mr_epoch = epoch + 1
+                    print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
+                    log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
+                        % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
+                else:
+                    print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
+                    log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
+                        % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
+            if epoch+1 >= cfg.val_begin:
+                print('Save checkpoint...')
+                filename = cfg.ckpt_path + '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
+                checkpoint = {
+                'epoch': epoch+1,
+                'optimizer': optimizer.state_dict(),
+                'amp': amp.state_dict()
+                }
+                if cfg.teacher:
+                    checkpoint['model'] = teacher_dict
+                else:
+                    checkpoint['model'] = net.module.state_dict()
+                torch.save(checkpoint, filename)
+                # if cfg.teacher:
+                #     torch.save(teacher_dict, filename+'.tea')
+                print('%s saved.' % filename)
+    if local_rank == 0:
+        log.write('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
+        log.close()
+        print('End of training!')
 
-def train(trainloader, net, criterion, center, height, offset, optimizer, epoch, config, args, teacher_dict=None):
-    t1 = time.time() 
-    t3 = time.time()
+def train(trainloader, net, criterion, center, height, offset, optimizer, epoch, config, args, local_rank, teacher_dict=None):
+    if local_rank == 0:
+        t1 = time.time() 
+        t3 = time.time()
     epoch_loss = 0.0
     total_loss_log, loss_cls_log, loss_reg_log, loss_offset_log, time_batch = 0, 0, 0, 0 ,0
     net.train()
@@ -198,7 +212,7 @@ def train(trainloader, net, criterion, center, height, offset, optimizer, epoch,
         loss_offset_log += batch_off_loss
         epoch_loss += batch_loss
 
-        if args.iter_cur % 20 == 0:
+        if args.iter_cur % 20 == 0 and local_rank == 0:
             t4 = time.time()
             time_batch += (t4-t3)
             ETA_time = (args.iter_num-args.iter_cur) * (time_batch/20)
@@ -213,9 +227,10 @@ def train(trainloader, net, criterion, center, height, offset, optimizer, epoch,
             if epoch_loss < args.best_loss:
                 args.best_loss = epoch_loss
                 args.best_loss_epoch = epoch + 1
-            t2 = time.time()
-            print('\rEpoch %d end, AvgLoss is %.6f, Time used %.1fsec.' % (epoch+1, epoch_loss, int(t2-t1)))
-            print('\rEpoch %d has lowest loss: %.7f' % (args.best_loss_epoch, args.best_loss))
+            if local_rank == 0:
+                t2 = time.time()
+                print('\rEpoch %d end, AvgLoss is %.6f, Time used %.1fsec.' % (epoch+1, epoch_loss, int(t2-t1)))
+                print('\rEpoch %d has lowest loss: %.7f' % (args.best_loss_epoch, args.best_loss))
             break
     return epoch_loss
 
@@ -281,6 +296,13 @@ def adjust_learning_rate(optimizer, epoch, config, args):
     if epoch in config.lr_step:
         for param_group in optimizer.param_groups:
             param_group['lr'] = param_group['lr'] * 0.1
+
+    # base_lr = 2e-4
+    # target_lr = 1e-5
+    # if 3 <= epoch:
+    #     for param_group in optimizer.param_groups:
+    #         param_group['lr'] =  target_lr + 0.5 * (base_lr - target_lr) * \
+    #             (1 + cos(pi * (epoch /config.num_epochs)))
 
 if __name__ == '__main__':
     main()

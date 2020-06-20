@@ -1,13 +1,13 @@
 class Config(object):
     def __init__(self):
-        self.branch = 'debug'
+        self.branch = 'DLA-34-bs12'
         self.gpu_ids = [0, 1]
-        self.onegpu = 4
-        self.num_epochs = 150
+        self.onegpu = 6
+        self.num_epochs = 120
         self.add_epoch = 0
-        self.iter_per_epoch = 2000
+        self.iter_per_epoch = 2000  # 2000
         self.init_lr = 2e-4
-        self.lr_step = [100]
+        self.lr_step = [80]
         self.alpha = 0.999
 
         # dataset
@@ -42,7 +42,7 @@ class Config(object):
         # whether or not to do validation during training
         self.val = True
         self.val_frequency = 2
-        self.val_begin = 20
+        self.val_begin = 70
 
         self.teacher = True     
         self.restore = False
