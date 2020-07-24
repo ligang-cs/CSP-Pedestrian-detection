@@ -9,7 +9,8 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.optim.lr_scheduler import MultiStepLR
 from torchvision.transforms import ToTensor, Normalize, Compose, ColorJitter
 from net.loss import *
-from net.network import CSPNet, CSPNet_mod, CSPNet_DLA
+# from net.network import CSPNet, CSPNet_mod, CSPNet_DLA
+from net.detector import CSP
 from config import Config
 from dataloader.loader import *
 from util.functions import parse_det_offset
@@ -39,7 +40,7 @@ def main():
     torch.distributed.init_process_group(backend='nccl', init_method='env://')
     device = torch.device('cuda:{}'.format(local_rank))
 
-    net = CSPNet_DLA().to(device)
+    net = CSP().to(device)
     center = cls_pos().to(device)
     height = reg_pos().to(device)
     offset = offset_pos().to(device)
@@ -124,10 +125,10 @@ def main():
 
     for epoch in range(args.start_epoch, cfg.num_epochs):
         datasampler.set_epoch(epoch)
+        print('----------')
+        print('Epoch %d begin' % ((epoch + 1)))
         epoch_loss = train(trainloader, net, criterion, center, height, offset, optimizer, epoch, cfg, args, local_rank, teacher_dict=teacher_dict)
         if local_rank == 0:
-            print('----------')
-            print('Epoch %d begin' % ((epoch + 1)))
             if cfg.val and (epoch + 1) >= cfg.val_begin and (epoch + 1) % cfg.val_frequency == 0:
                 cur_mr = val(testloader, net, cfg, args, teacher_dict=teacher_dict)
                 if cur_mr[0] < args.best_mr:
@@ -140,7 +141,7 @@ def main():
                     print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
                     log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
                         % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
-            if epoch+1 >= cfg.val_begin:
+            if epoch+1 >= cfg.val_begin - 1:
                 print('Save checkpoint...')
                 filename = cfg.ckpt_path + '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
                 checkpoint = {

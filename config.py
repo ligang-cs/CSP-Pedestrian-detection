@@ -1,12 +1,12 @@
 class Config(object):
     def __init__(self):
-        self.branch = 'DLA-34-bs12'
+        self.branch = 'DLA34_SiblingHead_BN'
         self.gpu_ids = [0, 1]
         self.onegpu = 6
-        self.num_epochs = 120
+        self.num_epochs = 130
         self.add_epoch = 0
         self.iter_per_epoch = 2000  # 2000
-        self.init_lr = 2e-4
+        self.init_lr = 5e-4
         self.lr_step = [80]
         self.alpha = 0.999
 
@@ -42,7 +42,7 @@ class Config(object):
         # whether or not to do validation during training
         self.val = True
         self.val_frequency = 2
-        self.val_begin = 70
+        self.val_begin = 30
 
         self.teacher = True     
         self.restore = False

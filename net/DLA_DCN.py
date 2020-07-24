@@ -13,7 +13,10 @@ from torch import nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 
-from .DCNv2.dcn_v2 import DCN
+from util.DCN.dcn_v2 import DCN
+from util.DCN.decorators import  cast_tensor_type, force_fp32
+
+import pdb
 
 BN_MOMENTUM = 0.1
 logger = logging.getLogger(__name__)
@@ -351,7 +354,9 @@ class DeformConv(nn.Module):
         )
         self.conv = DCN(chi, cho, kernel_size=(3,3), stride=1, padding=1, dilation=1, deformable_groups=1)
 
+
     def forward(self, x):
+        x = cast_tensor_type(x, torch.half, torch.float)
         x = self.conv(x)
         x = self.actf(x)
         return x
@@ -376,7 +381,6 @@ class IDAUp(nn.Module):
             setattr(self, 'up_' + str(i), up)
             setattr(self, 'node_' + str(i), node)
                  
-        
     def forward(self, layers, startp, endp):
         for i in range(startp + 1, endp):
             upsample = getattr(self, 'up_' + str(i - startp))
@@ -454,6 +458,7 @@ class DLASeg(nn.Module):
         # z = {}
         # for head in self.heads:
         #     z[head] = self.__getattr__(head)(y[-1])
+        y[-1] = cast_tensor_type(y[-1], torch.float, torch.half)
         return y[-1]
     
 

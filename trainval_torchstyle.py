@@ -9,7 +9,8 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.optim.lr_scheduler import MultiStepLR
 from torchvision.transforms import ToTensor, Normalize, Compose, ColorJitter
 from net.loss import *
-from net.network import CSPNet, CSPNet_mod, CSPNet_DLA
+# from net.network import CSPNet, CSPNet_mod, CSPNet_DLA
+from net.detector import CSP
 from config import Config
 from dataloader.loader import *
 from util.functions import parse_det_offset
@@ -32,7 +33,7 @@ def main():
     cfg = Config()
     args = parse()
 
-    net = CSPNet_DLA().cuda()
+    net = CSP().cuda()
     center = cls_pos().cuda()
     height = reg_pos().cuda()
     offset = offset_pos().cuda()
@@ -128,7 +129,7 @@ def main():
                 print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
                 log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
                     % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
-        if epoch+1 >= cfg.val_begin:
+        if epoch+1 >= cfg.val_begin - 1:
             print('Save checkpoint...')
             filename = cfg.ckpt_path + '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
             checkpoint = {

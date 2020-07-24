@@ -4,9 +4,11 @@ import torch.nn as nn
 from .resnet import *
 from .l2norm import L2Norm
 from .dla_up import dla34up
+from .DLA_DCN import get_DLA_net
+from util.DCN.decorators import auto_fp16
 import pdb
 
-class CSPNet(nn.Module):
+class ResNet50(nn.Module):
     def __init__(self):
         super(CSPNet, self).__init__()
 
@@ -40,17 +42,7 @@ class CSPNet(nn.Module):
         self.feat_bn = nn.BatchNorm2d(256, momentum=0.01)
         self.feat_act = nn.ReLU(inplace=True)
 
-        self.pos_conv = nn.Conv2d(256, 1, kernel_size=1)
-        self.reg_conv = nn.Conv2d(256, 1, kernel_size=1)
-        self.off_conv = nn.Conv2d(256, 2, kernel_size=1)
-
         nn.init.xavier_normal_(self.feat.weight)
-        nn.init.xavier_normal_(self.pos_conv.weight)
-        nn.init.xavier_normal_(self.reg_conv.weight)
-        nn.init.xavier_normal_(self.off_conv.weight)
-        nn.init.constant_(self.pos_conv.bias, -math.log(0.99/0.01))
-        nn.init.constant_(self.reg_conv.bias, 0)
-        nn.init.constant_(self.off_conv.bias, 0)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -77,41 +69,7 @@ class CSPNet(nn.Module):
         feat = self.feat(cat)
         feat = self.feat_bn(feat)
         feat = self.feat_act(feat)
-
-        x_cls = self.pos_conv(feat)
-        x_cls = torch.sigmoid(x_cls)
-        x_reg = self.reg_conv(feat)
-        x_off = self.off_conv(feat)
-        return x_cls, x_reg, x_off
-
-    # def train(self, mode=True):
-    #     # Override train so that the training mode is set as we want
-    #     nn.Module.train(self, mode)
-    #     if mode:
-    #         # Set fixed blocks to be in eval mode
-    #         self.conv1.eval()
-    #         self.layer1.eval()
-    #
-    #         # bn is trainable in CONV2
-    #         def set_bn_train(m):
-    #             class_name = m.__class__.__name__
-    #             if class_name.find('BatchNorm') != -1:
-    #                 m.train()
-    #             else:
-    #                 m.eval()
-    #         self.layer1.apply(set_bn_train)
-
-
-# to do
-#
-# constuct a bn fixed CSP
-#
-#
-#
-#
-#
-
-
+        return feat
 
 class CSPNet_mod(nn.Module):
     # This is Batchnorm fixed version of CSP
@@ -228,34 +186,23 @@ class CSPNet_mod(nn.Module):
             self.layer3.apply(set_bn_eval)
             self.layer4.apply(set_bn_eval)
 
-class CSPNet_DLA(nn.Module):
+class DLA_34(nn.Module):
     def __init__(self):
-        super(CSPNet_DLA, self).__init__()
+        super(DLA_34, self).__init__()
 
         self.base_DLA = dla34up()
-        self.DLA_head = nn.Conv2d(64, 256, kernel_size=3, padding=1, bias=True)
-        self.feat_bn = nn.BatchNorm2d(256, momentum=0.01)
-        self.pos_conv = nn.Conv2d(256, 1, kernel_size=1)
-        self.reg_conv = nn.Conv2d(256, 1, kernel_size=1)
-        self.off_conv = nn.Conv2d(256, 2, kernel_size=1) 
+        # self.base_DLA = get_DLA_net()
+        # self.DLA_head = nn.Conv2d(64, 256, kernel_size=3, padding=1, bias=True)
+        # self.feat_bn = nn.BatchNorm2d(256, momentum=0.01)
 
-        self.relu = nn.ReLU(inplace=True)
-        nn.init.xavier_normal_(self.DLA_head.weight)
-        nn.init.xavier_normal_(self.pos_conv.weight)
-        nn.init.xavier_normal_(self.reg_conv.weight)
-        nn.init.xavier_normal_(self.off_conv.weight)    
-        nn.init.constant_(self.reg_conv.bias, 0)
-        nn.init.constant_(self.pos_conv.bias, -math.log(0.99/0.01))
-        nn.init.constant_(self.off_conv.bias, 0)   
-        nn.init.constant_(self.DLA_head.bias, 0)
+        # self.relu = nn.ReLU(inplace=True)
 
+    # def init_weights(self):
+    #     nn.init.xavier_normal_(self.DLA_head.weight)
+    #     nn.init.constant_(self.DLA_head.bias, 0)
+
+    # @auto_fp16()
     def forward(self, x):
-
         feat = self.base_DLA(x)
-        feat = self.relu(self.feat_bn(self.DLA_head(feat)))
-        x_cls = self.pos_conv(feat)
-        x_cls = torch.sigmoid(x_cls)
-        x_reg = self.reg_conv(feat)
-        x_off = self.off_conv(feat)
-
-        return x_cls, x_reg, x_off
+        # feat = self.relu(self.feat_bn(self.DLA_head(feat)))
+        return feat
