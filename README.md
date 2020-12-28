@@ -68,6 +68,15 @@ If you have any questions, please do not hesitate to contact Li Gang (gang.li@nj
 
 We also appreciate all contributions to improve this repo. 
 
+## Acknowledgement
+
+- HRNet codes are folked from [HRNet offical codes](https://github.com/HRNet/HRNet-Semantic-Segmentation/tree/pytorch-v1.1)
+- DLA-34 codes are folked from [here](https://github.com/ucbdrive/dla)
+
+Many thanks to them !
+
+
+
 
 
 
