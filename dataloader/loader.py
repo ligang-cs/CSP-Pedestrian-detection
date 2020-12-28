@@ -12,17 +12,14 @@ from .load_data import get_citypersons
 import pdb
 
 class CityPersons(Dataset):
-    def __init__(self, path, type, config, preloaded=False, transform=None, caffemodel=False):
+    def __init__(self, path, type, config, preloaded=False, transform=None):
 
         self.dataset = get_citypersons(root_dir=path, type=type)
         self.dataset_len = len(self.dataset)
         self.type = type
 
-        if self.type == 'train' and config.train_random:
-            random.shuffle(self.dataset)
         self.config = config
         self.transform = transform
-        self.caffemodel = caffemodel
 
         if self.type == 'train':
             self.preprocess = RandomResizeFix(size=config.size_train, scale=(0.4, 1.5))
@@ -34,73 +31,38 @@ class CityPersons(Dataset):
         if self.preloaded:
             self.img_cache = []
             for i, data in enumerate(self.dataset):
-                if self.caffemodel:
-                    self.img_cache.append(cv2.imread(data['filepath']))
-                else:
-                    self.img_cache.append(Image.open(data['filepath']))
+                self.img_cache.append(cv2.imread(data['filepath']))
                 print('%d/%d\r' % (i+1, self.dataset_len),end='')
                 sys.stdout.flush()
             print('')
   
     def __getitem__(self, item):
-        if self.caffemodel:
-            # input is BGR order, not normalized
-            img_data = self.dataset[item]
-            if self.preloaded:
-                img = self.img_cache[item]
-            else:
-                img = cv2.imread(img_data['filepath'])
+        img_data = self.dataset[item]
+        if self.preloaded:
+            img = self.img_cache[item]
+        else:
+            img = cv2.imread(img_data['filepath'])
 
-            if self.type == 'train':
-                img_data, x_img = data_augment.augment(self.dataset[item], self.config, img)
+        if self.type == 'train':
+            img_data, x_img = data_augment.augment(self.dataset[item], self.config, img)
 
-                gts = img_data['bboxes'].copy()
-                igs = img_data['ignoreareas'].copy()
+            gts = img_data['bboxes'].copy()
+            igs = img_data['ignoreareas'].copy()
 
-                y_center, y_height, y_offset = self.calc_gt_center(gts, igs, radius=2, stride=self.config.down)
+            y_center, y_height, y_offset = self.calc_gt_center(gts, igs, radius=2, stride=self.config.down)
 
-                x_img = x_img.astype(np.float32)
-                x_img = cv2.cvtColor(x_img, cv2.COLOR_BGR2RGB)
-                x_img = (x_img - self.config.norm_mean) / self.config.norm_std
-                x_img = torch.from_numpy(x_img.transpose(2, 0, 1))
-
-                return x_img, [y_center, y_height, y_offset]
-
-            else:
-                x_img = img.astype(np.float32)
-                x_img = cv2.cvtColor(x_img, cv2.COLOR_BGR2RGB)
-                x_img = (x_img - self.config.norm_mean) / self.config.norm_std
-                x_img = torch.from_numpy(x_img.transpose(2, 0, 1))
-
-                return x_img
+            x_img = x_img.astype(np.float32)
+            x_img = cv2.cvtColor(x_img, cv2.COLOR_BGR2RGB)
+            x_img = (x_img - self.config.norm_mean) / self.config.norm_std
+            x_img = torch.from_numpy(x_img.transpose(2, 0, 1))
+            return x_img, [y_center, y_height, y_offset]
 
         else:
-            # input is RGB order, and normalized
-            img_data = self.dataset[item]
-            if self.preloaded:
-                img = self.img_cache[item]
-            else:
-                img = Image.open(img_data['filepath'])
-
-            if self.type == 'train':
-                gts = img_data['bboxes'].copy()
-                igs = img_data['ignoreareas'].copy()
-
-                x_img, gts, igs = self.preprocess(img, gts, igs)
-
-                y_center, y_height, y_offset = self.calc_gt_center(gts, igs, radius=2, stride=self.config.down)
-
-                if self.transform is not None:
-                    x_img = self.transform(x_img)
-                return x_img, [y_center, y_height, y_offset]
-
-            else:
-                if self.transform is not None:
-                    x_img = self.transform(img)
-                else:
-                    x_img = img
-
-                return x_img
+            x_img = img.astype(np.float32)
+            x_img = cv2.cvtColor(x_img, cv2.COLOR_BGR2RGB)
+            x_img = (x_img - self.config.norm_mean) / self.config.norm_std
+            x_img = torch.from_numpy(x_img.transpose(2, 0, 1))
+            return x_img
 
     def __len__(self):
         return self.dataset_len

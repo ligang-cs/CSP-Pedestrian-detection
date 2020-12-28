@@ -1,30 +1,18 @@
 class Config(object):
     def __init__(self):
-        self.branch = 'DLA34_SiblingHead_BN'
-        self.gpu_ids = [0, 1]
-        self.onegpu = 6
-        self.num_epochs = 130
-        self.add_epoch = 0
-        self.iter_per_epoch = 2000  # 2000
-        self.init_lr = 5e-4
+        # Select backbone from ['ResNet50', 'DLA34', 'HRNet18', 'HRNet18_small'] 
+        self.backbone  = 'ResNet50' 
+
+        # training config
+        self.onegpu = 4
+        self.num_epochs = 120
+        self.iter_per_epoch = 2000 
+        self.init_lr = 2e-4
         self.lr_step = [80]
         self.alpha = 0.999
 
         # dataset
-        self.train_path = '/ligang/Dataset/citypersons'
-        self.test_path =  '/ligang/Dataset/citypersons'
-        self.ckpt_prefix = '/ligang/Works/PedDet/CSP/Experiments/'
-        self.ckpt_path = self.ckpt_prefix + self.branch
-        self.train_random = False
-
-        # setting for network architechture
-        self.network = 'resnet50'  # or 'mobilenet'
-        self.point = 'center'  # or 'top', 'bottom
-        self.scale = 'h'  # or 'w', 'hw'
-        self.num_scale = 1  # 1 for height (or width) prediction, 2 for height+width prediction
-        self.offset = True  # append offset prediction or not
-        self.down = 4  # downsampling rate of the feature map for detection
-        self.radius = 2  # surrounding areas of positives for the scale map
+        self.root_path = '/Dataset/citypersons'     # the path to your citypersons dataset  
 
         # setting for data augmentation
         self.use_horizontal_flips = True
@@ -36,16 +24,25 @@ class Config(object):
         self.norm_mean = [123.675, 116.28, 103.53]
         self.norm_std = [58.395, 57.12, 57.375]
 
-        # whether or not use caffe style training which is used in paper
-        self.caffemodel = True
-
-        # whether or not to do validation during training
+        # whether or not to perform validation during training
         self.val = True
         self.val_frequency = 2
-        self.val_begin = 30
+        self.val_begin = 70
 
+        # whether ot not to use the strategy of weight moving average 
         self.teacher = True     
-        self.restore = False
+
+        # TODO: adaptively adjust network  
+        # setting for network architechture (Not implemented)
+        self.point = 'center'  # or 'top', 'bottom
+        self.scale = 'h'  # or 'w', 'hw'
+        self.num_scale = 1  # 1 for height (or width) prediction, 2 for height+width prediction
+        self.offset = True  # append offset prediction or not
+        self.down = 4  # downsampling rate of the feature map for detection
+        self.radius = 2  # surrounding areas of positives for the scale map
 
     def print_conf(self):
         print('\n'.join(['%s:%s' % item for item in self.__dict__.items()]))
+
+    def write_conf(self, log):
+        log.write('\n'.join(['%s:%s' % item for item in self.__dict__.items()]))

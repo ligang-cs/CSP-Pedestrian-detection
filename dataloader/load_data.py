@@ -6,12 +6,10 @@ from scipy import io as scio
 
 def get_citypersons(root_dir='data/cityperson', type='train'):
     all_img_path = os.path.join(root_dir, 'images')
-    # all_img_path = '/ligang/VirtualMemory/citypersons/images'
     all_anno_path = os.path.join(root_dir, 'annotations')
     rows, cols = 1024, 2048
 
     anno_path = os.path.join(all_anno_path, 'anno_' + type + '.mat')
-    res_path = os.path.join('data/cache/cityperson', type)
     image_data = []
     annos = scio.loadmat(anno_path)
     index = 'anno_' + type + '_aligned'
