@@ -14,6 +14,7 @@ We will **continuously update this repo**, and add some useful tricks (e.g.  [SW
 | ResNet-50 | 11.30 | 41.09 | 37.55 | ~5 hours |      |
 | DLA-34 | 11.12 | 43.00 | 37.32 | ~3 hours |      |
 | HRNet-18 | 10.24 | 37.72 | 36.15 | ~11 hours |      |
+
 **Note**: Training time is evaluated in two 2080Ti GPUs for 120 epochs. We will further tune some hyperparameters (e.g. learning rate, batchsize) these days, then will release our models.
 
 ## Get Start
