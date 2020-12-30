@@ -7,6 +7,7 @@ from torch.optim.lr_scheduler import MultiStepLR
 from torchvision.transforms import ToTensor, Normalize, Compose, ColorJitter
 
 from lib.loss import loss_cls, loss_reg, loss_offset
+from lib.optimize import adjust_learning_rate
 from net.detector import CSP
 from config import Config
 from dataloader.loader import *
@@ -95,7 +96,11 @@ def main():
                         time_date.hour, time_date.minute)
     log_file = os.path.join(cfg.ckpt_path, time_log + '.log')
     log = open(log_file, 'w')
-    
+    cfg.write_conf(log)
+
+    if cfg.add_epoch != 0:
+        cfg.num_epochs = args.start_epoch + cfg.add_epoch
+
     args.iter_num = args.epoch_length*cfg.num_epochs
 
     args.best_loss = np.Inf
@@ -103,7 +108,7 @@ def main():
     args.best_mr = 100
     args.best_mr_epoch = 0
 
-    if args.resume:
+    if args.resume and cfg.add_epoch == 0:
         args.iter_cur = args.start_epoch * args.epoch_length
     else:
         args.iter_cur = 0
@@ -126,7 +131,7 @@ def main():
                     % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
         if epoch+1 >= cfg.val_begin - 1:
             print('Save checkpoint...')
-            filename = cfg.ckpt_path + '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
+            filename = cfg.ckpt_path+ '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
             checkpoint = {
             'epoch': epoch+1,
             'optimizer': optimizer.state_dict(),
@@ -150,10 +155,10 @@ def train(trainloader, net, criterion, center, height, offset, optimizer, epoch,
     epoch_loss = 0.0
     total_loss_log, loss_cls_log, loss_reg_log, loss_offset_log, time_batch = 0, 0, 0, 0 ,0
     net.train()
-    adjust_learning_rate(optimizer, epoch, config, args)
-    args.lr = optimizer.param_groups[0]['lr']
+
     for i, data in enumerate(trainloader):   
-        # t3 = time.time()
+        adjust_learning_rate(optimizer, epoch, config, args)
+        args.lr = optimizer.param_groups[0]['lr']
         args.iter_cur += 1
         inputs, labels = data
         inputs = inputs.cuda()
@@ -263,20 +268,6 @@ def criterion(output, label, center, height, offset):
     reg_loss = height(output[1], label[1])
     off_loss = offset(output[2], label[2])
     return cls_loss, reg_loss, off_loss
-
-def adjust_learning_rate(optimizer, epoch, config, args):
-    if epoch < 3:
-        lr = config.init_lr * float((epoch+1)*args.epoch_length)/(3.*args.epoch_length)
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-    if 3 <= epoch < config.lr_step[0]:
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = config.init_lr
-
-    if epoch in config.lr_step:
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = param_group['lr'] * 0.1
 
 if __name__ == '__main__':
     main()

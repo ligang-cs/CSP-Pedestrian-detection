@@ -11,6 +11,7 @@ from config import Config
 from dataloader.loader import *
 from utils.functions import parse_det_offset
 from eval_city.eval_script.eval_demo import validate
+import numpy as np
 
 import json
 import argparse
@@ -69,7 +70,6 @@ def val(testloader, net, config, args, teacher_dict=None):
                             config.size_test, score=0.1, down=4, nms_thresh=0.5)
         if len(boxes) > 0:
             boxes[:, [2, 3]] -= boxes[:, [0, 1]]
-
             for box in boxes:
                 temp = dict()
                 temp['image_id'] = i+1

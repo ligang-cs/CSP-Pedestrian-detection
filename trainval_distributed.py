@@ -10,6 +10,7 @@ from apex.parallel import DistributedDataParallel as DDP
 
 from lib.loss import loss_cls, loss_reg, loss_offset
 from net.detector import CSP
+from lib.optimize import adjust_learning_rate
 from config import Config
 from dataloader.loader import *
 from utils.functions import parse_det_offset
@@ -20,7 +21,6 @@ import json
 import os
 import time
 import argparse
-from math import cos, pi
 import pdb
 
 def parse():
@@ -96,7 +96,7 @@ def main():
         cfg.print_conf()
         print('Training start')
         if not os.path.exists(cfg.ckpt_path):
-            os.mkdir(cfg.ckpt_path)\
+            os.mkdir(cfg.ckpt_path)
         # open log file
         time_date = datetime.datetime.now()
         time_log = '{}{}{}_{}{}'.format(time_date.year, time_date.month, time_date.day, 
@@ -105,6 +105,9 @@ def main():
         log = open(log_file, 'w')
         cfg.write_conf(log)
     
+    if cfg.add_epoch != 0:
+        cfg.num_epochs = args.start_epoch + cfg.add_epoch
+
     args.iter_num = args.epoch_length*cfg.num_epochs
 
     args.best_loss = np.Inf
@@ -112,7 +115,7 @@ def main():
     args.best_mr = 100
     args.best_mr_epoch = 0
 
-    if args.resume:
+    if args.resume and cfg.add_epoch == 0:
         args.iter_cur = args.start_epoch * args.epoch_length
     else:
         args.iter_cur = 0
@@ -136,7 +139,7 @@ def main():
                     print('Epoch %d has lowest MR: %.7f' % (args.best_mr_epoch, args.best_mr))
                     log.write('epoch_num: %d loss: %.7f Summerize: [Reasonable: %.2f%%], [Reasonable_small: %.2f%%], [Reasonable_occ=heavy: %.2f%%], [All: %.2f%%], lr: %.6f\n'
                         % (epoch+1, epoch_loss, cur_mr[0]*100, cur_mr[1]*100, cur_mr[2]*100, cur_mr[3]*100, args.lr))
-            if epoch+1 >= cfg.val_begin - 1:
+            if epoch+1 >= cfg.val_begin - 1:    
                 print('Save checkpoint...')
                 filename = cfg.ckpt_path + '/%s-%d.pth' % (net.module.__class__.__name__, epoch+1)
                 checkpoint = {
@@ -164,10 +167,9 @@ def train(trainloader, net, criterion, center, height, offset, optimizer, epoch,
     epoch_loss = 0.0
     total_loss_log, loss_cls_log, loss_reg_log, loss_offset_log, time_batch = 0, 0, 0, 0 ,0
     net.train()
-    adjust_learning_rate(optimizer, epoch, config, args)
-    args.lr = optimizer.param_groups[0]['lr']
     for i, data in enumerate(trainloader):   
-        # t3 = time.time()
+        adjust_learning_rate(optimizer, epoch, config, args)
+        args.lr = optimizer.param_groups[0]['lr']
         args.iter_cur += 1
         inputs, labels = data
         inputs = inputs.cuda()
@@ -247,7 +249,6 @@ def val(testloader, net, config, args, teacher_dict=None):
         boxes = parse_det_offset(pos.cpu().numpy(), height.cpu().numpy(), offset.cpu().numpy(), config.size_test, score=0.1, down=4, nms_thresh=0.5)
         if len(boxes) > 0:
             boxes[:, [2, 3]] -= boxes[:, [0, 1]]
-
             for box in boxes:
                 temp = dict()
                 temp['image_id'] = i+1
@@ -278,20 +279,6 @@ def criterion(output, label, center, height, offset):
     reg_loss = height(output[1], label[1])
     off_loss = offset(output[2], label[2])
     return cls_loss, reg_loss, off_loss
-
-def adjust_learning_rate(optimizer, epoch, config, args):
-    if epoch < 3:
-        lr = config.init_lr * float((epoch+1)*args.epoch_length)/(3.*args.epoch_length)
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = lr
-
-    if 3 <= epoch < config.lr_step[0]:
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = config.init_lr
-
-    if epoch in config.lr_step:
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = param_group['lr'] * 0.1
 
 if __name__ == '__main__':
     main()

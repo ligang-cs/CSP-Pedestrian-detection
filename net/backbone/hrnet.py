@@ -5,6 +5,38 @@ from lib.hrnet import get_hrnet
 
 import pdb
 
+HRNet32 = dict(
+	TYPE='hrnet_w32',
+	FINAL_CONV_KERNEL=1,
+	STAGE1=dict(
+		NUM_MODULES=1,
+		NUM_RANCHES=1,
+		BLOCK='BOTTLENECK',
+		NUM_BLOCKS=(4,),
+		NUM_CHANNELS=(64,),
+		FUSE_METHOD= 'SUM'),
+	STAGE2=dict(
+		NUM_MODULES=1,
+		NUM_BRANCHES=2,
+		BLOCK='BASIC',
+		NUM_BLOCKS=(4, 4),
+		NUM_CHANNELS=(32, 64),
+		FUSE_METHOD='SUM'),
+	STAGE3=dict(
+		NUM_MODULES=4,
+		NUM_BRANCHES=3,
+		BLOCK='BASIC',
+		NUM_BLOCKS=(4, 4, 4),
+		NUM_CHANNELS=(32, 64, 128),
+		FUSE_METHOD='SUM'),
+	STAGE4=dict(
+		NUM_MODULES=3,
+		NUM_BRANCHES=4,
+		BLOCK='BASIC',
+		NUM_BLOCKS=(4, 4, 4, 4),
+		NUM_CHANNELS=(32, 64, 128, 256),
+		FUSE_METHOD='SUM'))
+
 HRNet18 = dict(
 	TYPE='hrnet_w18',
 	FINAL_CONV_KERNEL=1,

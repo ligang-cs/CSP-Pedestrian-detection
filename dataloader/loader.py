@@ -42,7 +42,6 @@ class CityPersons(Dataset):
             img = self.img_cache[item]
         else:
             img = cv2.imread(img_data['filepath'])
-
         if self.type == 'train':
             img_data, x_img = data_augment.augment(self.dataset[item], self.config, img)
 
@@ -58,6 +57,10 @@ class CityPersons(Dataset):
             return x_img, [y_center, y_height, y_offset]
 
         else:
+            (h, w) = self.config.size_test
+            # (h_ori, w_ori) = img.shape[:2]
+            img = cv2.resize(img, (w, h))
+            # scale_factor = min(h/h_ori, w/w_ori)
             x_img = img.astype(np.float32)
             x_img = cv2.cvtColor(x_img, cv2.COLOR_BGR2RGB)
             x_img = (x_img - self.config.norm_mean) / self.config.norm_std
