@@ -11,11 +11,11 @@ We will **continuously update this repo**, and add some useful tricks (e.g. data
 ## models
 | Model | Reasonable | Heavy Occlusion | All  | Training time | Link |
 | ----- | :--------: | :-------------: | :----: | :----------: | :----: |
-| ResNet-50 | 11.30 | 41.09 | 37.55 | ~5 hours |      |
+| ResNet-50 | 11.30 | 41.09 | 37.55 | ~5 hours | [BaiduYun(code:v61g)](https://pan.baidu.com/s/1RpuXawJOszBe4BfvIGmZDw)     |
 | DLA-34 | 11.12 | 43.00 | 37.32 | ~3 hours |      |
 | HRNet-18 | 10.24 | 37.72 | 36.15 | ~11 hours |      |
 | HRNet-32| 9.69 | 36.48 | 35.47 | ~13 hours | |
-|HRNet-32 + [SWA](https://arxiv.org/abs/2012.12645) | 9.66 | **34.61** | 34.86 | |
+|HRNet-32 + [SWA](https://arxiv.org/abs/2012.12645) | 9.66 | **34.61** | 34.86 | | [BaiduYun(code:v61g)](https://pan.baidu.com/s/1RpuXawJOszBe4BfvIGmZDw)  |
 
 **Note**: Training time is evaluated in two 2080Ti GPUs for 120 epochs. We will further tune some hyperparameters (e.g. learning rate, batchsize) these days, then will release our models.
 

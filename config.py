@@ -1,16 +1,16 @@
 class Config(object):
     def __init__(self):
         # Select backbone from ['ResNet50', 'DLA34', 'HRNet18_small', 'HRNet18', 'HRNet32'] 
-        self.backbone  = 'ResNet50' 
+        self.backbone  = 'HRNet32' 
 
         # training config
-        self.onegpu = 4
-        self.num_epochs = 120
+        self.onegpu = 2
+        self.num_epochs = 70
         self.add_epoch = 0
         self.iter_per_epoch = 2000 
         self.init_lr = 2e-4
         self.lr_policy = 'step'     #  or cyclic for SWA
-        self.lr_step = [80]
+        self.lr_step = [50]
         self.warm_up = 3
         self.alpha = 0.999
         # Set for SWA 
@@ -33,7 +33,7 @@ class Config(object):
         # whether or not to perform validation during training
         self.val = True
         self.val_frequency = 2
-        self.val_begin = 70
+        self.val_begin = 30
 
         # whether ot not to use the strategy of weight moving average 
         self.teacher = True     

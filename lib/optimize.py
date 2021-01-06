@@ -13,7 +13,7 @@ def adjust_learning_rate(optimizer, epoch, config, args):
 
         if epoch in config.lr_step:
             for param_group in optimizer.param_groups:
-                param_group['lr'] = param_group['lr'] * 0.1
+                param_group['lr'] = config.init_lr * 0.1
 
     elif config.lr_policy == 'cyclic':
         # defalt: cyclic times = 1
